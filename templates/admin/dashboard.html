@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MAFSCN 管理看板</title>
+  <link rel="stylesheet" href="/static/css/admin.css">
+</head>
+<body>
+
+  <!-- Sidebar overlay (mobile) -->
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <div class="sidebar-logo-icon">M</div>
+        <div class="sidebar-logo-text">
+          MAFSCN
+          <small>景区智能分析系统</small>
+        </div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="sidebar-nav-group-title">功能导航</div>
+      <a href="/admin" class="sidebar-nav-item active">
+        <span class="nav-icon">📊</span> 概览与情感分析
+      </a>
+      <a href="/admin/analysis" class="sidebar-nav-item">
+        <span class="nav-icon">📈</span> 数据分析
+      </a>
+
+      <div class="sidebar-nav-group-title">快捷入口</div>
+      <a href="/" class="sidebar-nav-item">
+        <span class="nav-icon">🏠</span> 游客首页
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-info">
+        BERT 双模型融合架构<br>
+        深度学习情感分析引擎
+      </div>
+      <span class="sidebar-badge success">🎯 准确率 91.02%</span>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <div class="main-content">
+
+    <!-- Header -->
+    <header class="admin-header">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="hamburger-btn" id="hamburgerBtn" onclick="toggleSidebar()">☰</button>
+        <h1 class="admin-header-title">管理看板</h1>
+      </div>
+      <div class="admin-header-right">
+        <span class="admin-header-badge" id="headerAccBadge">🎯 准确率 91.02%</span>
+      </div>
+    </header>
+
+    <!-- Content Body -->
+    <div class="content-body">
+
+      <!-- ====== OVERVIEW STATS ====== -->
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat-card blue">
+          <div class="stat-card-icon">📋</div>
+          <div class="stat-card-body">
+            <div class="stat-card-value skeleton" id="statTotal">--</div>
+            <div class="stat-card-label">总评论数</div>
+          </div>
+        </div>
+        <div class="stat-card green">
+          <div class="stat-card-icon">😊</div>
+          <div class="stat-card-body">
+            <div class="stat-card-value skeleton" id="statPositive">--</div>
+            <div class="stat-card-label">正面评论</div>
+          </div>
+        </div>
+        <div class="stat-card red">
+          <div class="stat-card-icon">😞</div>
+          <div class="stat-card-body">
+            <div class="stat-card-value skeleton" id="statNegative">--</div>
+            <div class="stat-card-label">负面评论</div>
+          </div>
+        </div>
+        <div class="stat-card amber">
+          <div class="stat-card-icon">🎯</div>
+          <div class="stat-card-body">
+            <div class="stat-card-value skeleton" id="statAccuracy">--</div>
+            <div class="stat-card-label">模型准确率</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====== SINGLE ANALYSIS PANEL ====== -->
+      <div class="panel-section">
+        <h2 class="panel-section-title">
+          <span class="title-icon">💬</span> 单条情感分析
+        </h2>
+
+        <!-- Quick tags -->
+        <div class="tags" id="tags">
+          <span class="tag" data-text="景区太美了，风景如画，下次还要来！">👍 景区太美了，下次还要来！</span>
+          <span class="tag" data-text="服务态度很差，排队时间太长，不值这个票价。">👎 服务很差，不值这个价</span>
+          <span class="tag" data-text="一般般，没什么特别的。">😐 一般般，没什么特别的</span>
+          <span class="tag" data-text="黄山云海日出太震撼了，强烈推荐给大家！">⛰️ 云海日出太震撼了！</span>
+          <span class="tag" data-text="景区管理混乱，厕所脏乱差，非常失望。">😤 管理混乱，非常失望</span>
+        </div>
+
+        <!-- Textarea -->
+        <div class="input-wrap">
+          <textarea id="singleInput"
+            placeholder="请输入景区评论内容，系统将自动识别情感倾向..."
+            oninput="updateCharCount()"></textarea>
+          <div class="char-count"><span id="charCount">0</span> / 2000</div>
+        </div>
+
+        <!-- Button -->
+        <div class="btn-row">
+          <button class="btn btn-primary" id="analyzeBtn" onclick="analyzeSingle()">
+            🔍 开始分析
+            <span class="spinner" id="analyzeSpinner"></span>
+          </button>
+          <span class="btn-hint">Ctrl+Enter 快捷发送</span>
+        </div>
+
+        <!-- Result -->
+        <div class="result-wrap" id="resultWrap">
+          <div class="result-hero" id="resultHero"></div>
+
+          <div class="prob-section">
+            <div class="prob-section-title">📊 三类概率分布</div>
+            <div class="prob-bars" id="probBars"></div>
+          </div>
+
+          <div class="section-divider"><span>模型决策路径</span></div>
+
+          <div class="models-compare" id="modelsCompare"></div>
+        </div>
+      </div>
+
+      <!-- ====== BATCH ANALYSIS PANEL ====== -->
+      <div class="panel-section">
+        <h2 class="panel-section-title">
+          <span class="title-icon">📊</span> 批量分析
+        </h2>
+
+        <!-- Upload zone -->
+        <div class="upload-zone" id="uploadZone"
+             onclick="document.getElementById('fileInput').click()">
+          <span class="uz-icon">📁</span>
+          <p class="uz-title">点击上传或拖拽 <em>CSV 文件</em></p>
+          <p class="uz-hint">需包含「评论内容」列 · 单次最多 5000 条 · 最大 32MB</p>
+        </div>
+        <input type="file" id="fileInput" accept=".csv" style="display:none"
+               onchange="handleFileSelect(event)">
+
+        <!-- File chip -->
+        <div class="file-chip" id="fileChip">
+          📄 <span id="fileName"></span>
+          <span class="fc-remove" onclick="removeFile()" title="移除">✕</span>
+        </div>
+
+        <!-- Button -->
+        <div class="btn-row">
+          <button class="btn btn-primary" id="batchBtn" onclick="analyzeBatch()" disabled>
+            🚀 开始批量分析
+            <span class="spinner" id="batchSpinner"></span>
+          </button>
+        </div>
+
+        <!-- Loading -->
+        <div class="batch-loading" id="batchLoading">
+          <div class="bl-spinner"></div>
+          <span>正在分析中，请耐心等待...</span>
+        </div>
+
+        <!-- Batch Result -->
+        <div class="batch-stats-wrap" id="batchResult">
+          <div class="batch-stats-grid" id="batchStatsGrid"></div>
+          <div class="download-wrap">
+            <a class="btn btn-outline" id="downloadLink" href="#" download>
+              📥 下载完整结果 (CSV)
+            </a>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+<script>
+/* ============================================================
+   SIDEBAR TOGGLE (MOBILE)
+   ============================================================ */
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('show');
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('show');
+}
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+function toast(msg, type) {
+  type = type || 'info';
+  const old = document.querySelector('.toast');
+  if (old) old.remove();
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+/* ============================================================
+   LOAD STATS (概览卡片数据)
+   ============================================================ */
+async function loadStats() {
+  try {
+    // Load total stats - API返回数组 [{name, negative, neutral, positive, total}, ...]
+    const statsResp = await fetch('/api/admin/stats');
+    const statsJson = await statsResp.json();
+    if (statsJson.success && Array.isArray(statsJson.data)) {
+      var total = 0, posTotal = 0, negTotal = 0, neuTotal = 0;
+      statsJson.data.forEach(function(s) {
+        total += (s.total || 0);
+        posTotal += (s.positive || 0);
+        negTotal += (s.negative || 0);
+        neuTotal += (s.neutral || 0);
+      });
+      document.getElementById('statTotal').textContent = total.toLocaleString();
+      document.getElementById('statTotal').classList.remove('skeleton');
+      document.getElementById('statPositive').textContent = posTotal.toLocaleString();
+      document.getElementById('statPositive').classList.remove('skeleton');
+      document.getElementById('statNegative').textContent = negTotal.toLocaleString();
+      document.getElementById('statNegative').classList.remove('skeleton');
+    }
+
+    // Accuracy is a fixed value from model
+    document.getElementById('statAccuracy').textContent = '91.02%';
+    document.getElementById('statAccuracy').classList.remove('skeleton');
+  } catch (err) {
+    console.error('加载统计数据失败:', err);
+    document.getElementById('statTotal').textContent = '--';
+    document.getElementById('statTotal').classList.remove('skeleton');
+    document.getElementById('statPositive').textContent = '--';
+    document.getElementById('statPositive').classList.remove('skeleton');
+    document.getElementById('statNegative').textContent = '--';
+    document.getElementById('statNegative').classList.remove('skeleton');
+    document.getElementById('statAccuracy').textContent = '91.02%';
+    document.getElementById('statAccuracy').classList.remove('skeleton');
+  }
+}
+
+/* ============================================================
+   CHAR COUNT
+   ============================================================ */
+function updateCharCount() {
+  const len = document.getElementById('singleInput').value.length;
+  document.getElementById('charCount').textContent = len;
+}
+
+/* ============================================================
+   QUICK TAG CLICK
+   ============================================================ */
+document.getElementById('tags').addEventListener('click', function(e) {
+  const tag = e.target.closest('.tag');
+  if (!tag) return;
+  const input = document.getElementById('singleInput');
+  input.value = tag.dataset.text;
+  updateCharCount();
+  input.focus();
+});
+
+/* ============================================================
+   SINGLE ANALYSIS
+   ============================================================ */
+async function analyzeSingle() {
+  const input = document.getElementById('singleInput');
+  const btn = document.getElementById('analyzeBtn');
+  const spinner = document.getElementById('analyzeSpinner');
+  const resultWrap = document.getElementById('resultWrap');
+  const text = input.value.trim();
+
+  if (!text) { toast('请先输入评论内容', 'err'); input.focus(); return; }
+  if (text.length > 2000) { toast('评论内容不能超过2000字', 'err'); return; }
+
+  btn.disabled = true;
+  spinner.classList.add('show');
+  resultWrap.classList.remove('show');
+
+  try {
+    const resp = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    const json = await resp.json();
+    if (!json.success) { toast(json.error || '分析失败', 'err'); return; }
+    renderSingleResult(json.data);
+    resultWrap.classList.add('show');
+    resultWrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch (err) {
+    toast('网络请求失败: ' + err.message, 'err');
+  } finally {
+    btn.disabled = false;
+    spinner.classList.remove('show');
+  }
+}
+
+function renderSingleResult(data) {
+  const s = data.sentiment;
+  const conf = data.confidence;
+  const probs = data.probabilities;
+  const m1 = data.model1_result;
+  const m2 = data.model2_result;
+
+  const map = {
+    '正面': { cls: 'pos', emoji: '😊' },
+    '中性': { cls: 'neu', emoji: '😐' },
+    '负面': { cls: 'neg', emoji: '😞' },
+  };
+  const c = map[s] || map['中性'];
+  const pct = (conf * 100).toFixed(1);
+
+  // Hero
+  document.getElementById('resultHero').innerHTML =
+    '<div class="hero-emoji ' + c.cls + '">' + c.emoji + '</div>' +
+    '<div class="hero-info">' +
+      '<div class="hero-label">情感分析结果</div>' +
+      '<div class="hero-sentiment ' + c.cls + '">' + c.emoji + ' ' + s + '</div>' +
+      '<div class="hero-conf">模型对该判断的置信度为 <strong>' + pct + '%</strong></div>' +
+    '</div>' +
+    '<div class="hero-score">' +
+      '<div class="hero-score-val ' + c.cls + '">' + pct + '%</div>' +
+      '<div class="hero-score-label">置信度</div>' +
+    '</div>';
+  document.getElementById('resultHero').className = 'result-hero ' + c.cls;
+
+  // Probability bars
+  var barHTML = function(label, val, cls, dotCls) {
+    return '<div class="prob-bar-item">' +
+      '<div class="prob-bar-label"><span class="dot ' + dotCls + '"></span>' + label + '</div>' +
+      '<div class="prob-bar-track">' +
+        '<div class="prob-bar-fill ' + cls + '" style="width:' + (val * 100).toFixed(0) + '%"></div>' +
+      '</div>' +
+      '<div class="prob-bar-val">' + (val * 100).toFixed(1) + '%</div>' +
+    '</div>';
+  };
+  document.getElementById('probBars').innerHTML =
+    barHTML('负面', probs['负面'], 'neg', 'neg') +
+    barHTML('中性', probs['中性'], 'neu', 'neu') +
+    barHTML('正面', probs['正面'], 'pos', 'pos');
+
+  // Model comparison
+  var modelCard = function(name, desc, m) {
+    var mc = map[m.sentiment] || map['中性'];
+    var mp = m.probabilities;
+    return '<div class="model-card">' +
+      '<div class="mc-label">独立判断</div>' +
+      '<div class="mc-name">' + name + '</div>' +
+      '<div class="mc-desc">' + desc + '</div>' +
+      '<div class="mc-bars">' +
+        '<div class="mc-bar-item">' +
+          '<div class="mc-bar-track"><div class="mc-bar-fill neg" style="width:' + (mp['负面'] * 100).toFixed(0) + '%"></div></div>' +
+          '<div class="mc-bar-num">' + (mp['负面'] * 100).toFixed(1) + '%</div>' +
+        '</div>' +
+        '<div class="mc-bar-item">' +
+          '<div class="mc-bar-track"><div class="mc-bar-fill neu" style="width:' + (mp['中性'] * 100).toFixed(0) + '%"></div></div>' +
+          '<div class="mc-bar-num">' + (mp['中性'] * 100).toFixed(1) + '%</div>' +
+        '</div>' +
+        '<div class="mc-bar-item">' +
+          '<div class="mc-bar-track"><div class="mc-bar-fill pos" style="width:' + (mp['正面'] * 100).toFixed(0) + '%"></div></div>' +
+          '<div class="mc-bar-num">' + (mp['正面'] * 100).toFixed(1) + '%</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="mc-decision ' + mc.cls + '">' + mc.emoji + ' ' + m.sentiment + ' ' + (m.confidence * 100).toFixed(1) + '%</div>' +
+    '</div>';
+  };
+  document.getElementById('modelsCompare').innerHTML =
+    modelCard('版本一', '6景区 2.3万条 · 中性识别敏感', m1) +
+    modelCard('版本二', '12景区 3.6万条 · 正负面判断精准', m2);
+}
+
+// Keyboard shortcut
+document.getElementById('singleInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    analyzeSingle();
+  }
+});
+
+/* ============================================================
+   BATCH - FILE HANDLING
+   ============================================================ */
+var selectedFile = null;
+
+function handleFileSelect(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  if (!file.name.endsWith('.csv')) { toast('仅支持 CSV 格式文件', 'err'); event.target.value = ''; return; }
+  if (file.size > 32 * 1024 * 1024) { toast('文件大小不能超过 32MB', 'err'); event.target.value = ''; return; }
+  selectedFile = file;
+  document.getElementById('fileName').textContent = file.name + ' (' + fmtSize(file.size) + ')';
+  document.getElementById('fileChip').classList.add('show');
+  document.getElementById('uploadZone').classList.add('has-file');
+  document.getElementById('batchBtn').disabled = false;
+}
+
+function removeFile() {
+  selectedFile = null;
+  document.getElementById('fileInput').value = '';
+  document.getElementById('fileChip').classList.remove('show');
+  document.getElementById('uploadZone').classList.remove('has-file');
+  document.getElementById('batchBtn').disabled = true;
+  document.getElementById('batchResult').classList.remove('show');
+}
+
+function fmtSize(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
+  return (b / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+// Drag & drop
+var uzone = document.getElementById('uploadZone');
+uzone.addEventListener('dragover', function(e) { e.preventDefault(); uzone.classList.add('drag-over'); });
+uzone.addEventListener('dragleave', function(e) { e.preventDefault(); uzone.classList.remove('drag-over'); });
+uzone.addEventListener('drop', function(e) {
+  e.preventDefault();
+  uzone.classList.remove('drag-over');
+  var files = e.dataTransfer.files;
+  if (files.length > 0) {
+    document.getElementById('fileInput').files = files;
+    handleFileSelect({ target: { files: files } });
+  }
+});
+
+/* ============================================================
+   BATCH - SUBMIT
+   ============================================================ */
+async function analyzeBatch() {
+  if (!selectedFile) { toast('请先上传 CSV 文件', 'err'); return; }
+
+  var btn = document.getElementById('batchBtn');
+  var spinner = document.getElementById('batchSpinner');
+  var loading = document.getElementById('batchLoading');
+  var result = document.getElementById('batchResult');
+
+  btn.disabled = true;
+  spinner.classList.add('show');
+  loading.classList.add('show');
+  result.classList.remove('show');
+
+  try {
+    var fd = new FormData();
+    fd.append('file', selectedFile);
+    var resp = await fetch('/api/batch', { method: 'POST', body: fd });
+    var json = await resp.json();
+    if (!json.success) { toast(json.error || '批量分析失败', 'err'); return; }
+
+    var stats = json.data.stats;
+    document.getElementById('batchStatsGrid').innerHTML =
+      '<div class="stat-cell"><div class="sc-val">' + stats.total + '</div><div class="sc-label">📋 总计</div></div>' +
+      '<div class="stat-cell s-pos"><div class="sc-val">' + (stats['正面'] || 0) + '</div><div class="sc-label">😊 正面</div></div>' +
+      '<div class="stat-cell s-neu"><div class="sc-val">' + (stats['中性'] || 0) + '</div><div class="sc-label">😐 中性</div></div>' +
+      '<div class="stat-cell s-neg"><div class="sc-val">' + (stats['负面'] || 0) + '</div><div class="sc-label">😞 负面</div></div>';
+    document.getElementById('downloadLink').href = json.data.download_url;
+    result.classList.add('show');
+    toast('批量分析完成！共处理 ' + stats.total + ' 条评论', 'ok');
+  } catch (err) {
+    toast('网络请求失败: ' + err.message, 'err');
+  } finally {
+    btn.disabled = false;
+    spinner.classList.remove('show');
+    loading.classList.remove('show');
+  }
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+document.addEventListener('DOMContentLoaded', function() {
+  loadStats();
+});
+</script>
+
+</body>
+</html>

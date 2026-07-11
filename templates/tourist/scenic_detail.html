@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ scenic_name }} - MAFSCN 景区详情</title>
+  <link rel="stylesheet" href="/static/css/tourist.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header" id="header">
+    <div class="header-logo">
+      <div class="logo-icon">M</div>
+      <div class="logo-text"><span>MAFSCN</span> 智能景区推荐</div>
+    </div>
+    <nav class="header-nav">
+      <a href="/admin">&#9881; 管理中心</a>
+    </nav>
+  </header>
+
+  <!-- 详情 Hero -->
+  <section class="detail-hero" id="detailHero">
+    <img class="hero-bg" id="heroBg" src="" alt="">
+    <div class="hero-overlay"></div>
+    <div class="hero-content">
+      <a href="/" class="back-btn">&larr; 返回首页</a>
+      <h1 id="heroTitle">{{ scenic_name }}</h1>
+    </div>
+  </section>
+
+  <!-- 详情内容 -->
+  <div class="detail-content" id="detailContent">
+    <!-- 加载状态 -->
+    <div class="loading-state" id="loadingState">
+      <div class="big-spinner"></div>
+      <p>正在加载景区信息...</p>
+    </div>
+
+    <!-- 错误状态 -->
+    <div class="error-state" id="errorState" style="display:none;">
+      <div class="error-icon">&#128533;</div>
+      <h2>加载失败</h2>
+      <p id="errorMsg">无法获取景区信息，请稍后重试</p>
+      <button class="retry-btn" onclick="loadDetail()">&#128260; 重新加载</button>
+    </div>
+
+    <!-- 正常内容 -->
+    <div id="normalContent" style="display:none;">
+      <!-- 信息卡片网格 -->
+      <div class="info-grid" id="infoGrid"></div>
+
+      <!-- 图片展示 -->
+      <div class="detail-gallery" id="gallerySection">
+        <h2>&#128247; 景区图片</h2>
+        <div class="gallery-images" id="galleryImages"></div>
+      </div>
+
+      <!-- 推荐理由 -->
+      <div class="reason-section" id="reasonSection">
+        <h2>&#128161; 推荐理由</h2>
+        <p id="reasonText"></p>
+      </div>
+
+      <!-- 关键词 -->
+      <div class="keywords-section" id="keywordsSection">
+        <h2>&#127991; 游客评价关键词</h2>
+        <div id="keywordsContent"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>&copy; 2026 MAFSCN 景区智能分析系统 &mdash; 基于 BERT 推荐与双模型情感分析</p>
+  </footer>
+
+  <!-- Toast 容器 -->
+  <div class="toast-container" id="toastContainer"></div>
+
+<script>
+// 景区名称（从 Jinja2 模板注入）
+const SCENIC_NAME = "{{ scenic_name | e }}";
+
+// ============================================================
+// Toast 提示
+// ============================================================
+function showToast(message, type) {
+  type = type || 'error';
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = 'toast ' + type;
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => {
+    if (toast.parentNode) toast.parentNode.removeChild(toast);
+  }, 3200);
+}
+
+// ============================================================
+// 加载景区详情
+// ============================================================
+async function loadDetail() {
+  const loadingEl = document.getElementById('loadingState');
+  const errorEl = document.getElementById('errorState');
+  const normalEl = document.getElementById('normalContent');
+
+  loadingEl.style.display = '';
+  errorEl.style.display = 'none';
+  normalEl.style.display = 'none';
+
+  try {
+    const resp = await fetch('/api/scenic/detail?name=' + encodeURIComponent(SCENIC_NAME));
+    const result = await resp.json();
+
+    if (!result.success) {
+      document.getElementById('errorMsg').textContent = result.error || '未找到该景区信息';
+      loadingEl.style.display = 'none';
+      errorEl.style.display = '';
+      return;
+    }
+
+    renderDetail(result.data);
+    loadingEl.style.display = 'none';
+    normalEl.style.display = '';
+  } catch (err) {
+    document.getElementById('errorMsg').textContent = '网络连接失败，请检查后重试';
+    loadingEl.style.display = 'none';
+    errorEl.style.display = '';
+    showToast('网络错误，请稍后重试');
+  }
+}
+
+// ============================================================
+// 渲染详情
+// ============================================================
+function renderDetail(data) {
+  // Hero 背景
+  const heroBg = document.getElementById('heroBg');
+  heroBg.src = data.image || '';
+  heroBg.onerror = function() {
+    this.style.display = 'none';
+  };
+
+  // 信息卡片
+  const infoItems = [
+    { icon: '&#128205;', color: 'blue', label: '地址', value: data.address },
+    { icon: '&#128176;', color: 'orange', label: '门票价格', value: data.price },
+    { icon: '&#128336;', color: 'green', label: '开放时间', value: data.hours },
+    { icon: '&#127873;', color: 'purple', label: '优惠政策', value: data.policy },
+    { icon: '&#128222;', color: 'cyan', label: '联系电话', value: data.phone }
+  ];
+
+  const infoGrid = document.getElementById('infoGrid');
+  let infoHtml = '';
+  infoItems.forEach(item => {
+    infoHtml += '<div class="info-card">';
+    infoHtml += '  <div class="info-icon ' + item.color + '">' + item.icon + '</div>';
+    infoHtml += '  <div class="info-label">' + item.label + '</div>';
+    infoHtml += '  <div class="info-value">' + (item.value || '暂无信息') + '</div>';
+    infoHtml += '</div>';
+  });
+  infoGrid.innerHTML = infoHtml;
+
+  // 图片展示
+  const galleryImages = document.getElementById('galleryImages');
+  let galleryHtml = '';
+  if (data.image) {
+    galleryHtml += '<img src="' + data.image + '" alt="' + data.name + '" loading="lazy" onerror="this.style.display=\'none\'">';
+  }
+  if (data.image2) {
+    galleryHtml += '<img src="' + data.image2 + '" alt="' + data.name + ' 图片2" loading="lazy" onerror="this.style.display=\'none\'">';
+  }
+  galleryImages.innerHTML = galleryHtml;
+  if (!data.image && !data.image2) {
+    document.getElementById('gallerySection').style.display = 'none';
+  }
+
+  // 推荐理由
+  const reasonText = document.getElementById('reasonText');
+  reasonText.textContent = data.reason || '暂无推荐理由';
+
+  // 关键词
+  const keywordsContent = document.getElementById('keywordsContent');
+  let kwHtml = '';
+
+  // 正面关键词
+  if (data.pos_keywords) {
+    const posList = data.pos_keywords.split(/[,，、;；\s]+/).filter(k => k.trim());
+    if (posList.length > 0) {
+      kwHtml += '<div class="keyword-group">';
+      kwHtml += '  <div class="group-label positive">&#9989; 正面评价关键词</div>';
+      kwHtml += '  <div class="keyword-tags">';
+      posList.forEach(kw => {
+        kwHtml += '<span class="keyword-tag positive">' + kw.trim() + '</span>';
+      });
+      kwHtml += '  </div>';
+      kwHtml += '</div>';
+    }
+  }
+
+  // 负面关键词
+  if (data.neg_keywords) {
+    const negList = data.neg_keywords.split(/[,，、;；\s]+/).filter(k => k.trim());
+    if (negList.length > 0) {
+      kwHtml += '<div class="keyword-group">';
+      kwHtml += '  <div class="group-label negative">&#10060; 负面评价关键词</div>';
+      kwHtml += '  <div class="keyword-tags">';
+      negList.forEach(kw => {
+        kwHtml += '<span class="keyword-tag negative">' + kw.trim() + '</span>';
+      });
+      kwHtml += '  </div>';
+      kwHtml += '</div>';
+    }
+  }
+
+  if (!kwHtml) {
+    kwHtml = '<p style="color: var(--text-light);">暂无关键词数据</p>';
+  }
+  keywordsContent.innerHTML = kwHtml;
+}
+
+// ============================================================
+// 初始化
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+  loadDetail();
+});
+</script>
+
+</body>
+</html>

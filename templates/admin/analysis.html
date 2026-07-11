@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MAFSCN 数据分析看板</title>
+  <link rel="stylesheet" href="/static/css/admin.css">
+  <style>
+    /* ============================================================
+       数据分析看板专用样式
+       ============================================================ */
+
+    /* ---- 景区选择面板 ---- */
+    .analysis-layout {
+      display: flex;
+      gap: 24px;
+      min-height: calc(100vh - 120px);
+    }
+
+    .scenic-panel {
+      width: 200px;
+      flex-shrink: 0;
+      background: var(--admin-card);
+      border-radius: var(--admin-radius);
+      border: 1px solid var(--admin-border);
+      box-shadow: var(--admin-shadow);
+      padding: 16px 12px;
+      position: sticky;
+      top: 80px;
+      align-self: flex-start;
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+    }
+
+    .scenic-panel-title {
+      font-size: .82rem;
+      font-weight: 700;
+      color: var(--admin-text);
+      margin-bottom: 12px;
+      padding: 0 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .scenic-btn {
+      display: block;
+      width: 100%;
+      padding: 9px 12px;
+      margin-bottom: 4px;
+      border: 1.5px solid var(--admin-border);
+      border-radius: var(--admin-radius-xs);
+      background: #f8fafc;
+      color: var(--admin-text);
+      font-size: .8rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--admin-transition);
+      text-align: left;
+      font-family: inherit;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .scenic-btn:hover {
+      background: #eff6ff;
+      border-color: #bfdbfe;
+      color: var(--admin-accent-dark);
+    }
+
+    .scenic-btn.active {
+      background: var(--admin-accent);
+      color: #fff;
+      border-color: var(--admin-accent);
+      box-shadow: 0 2px 8px rgba(59,130,246,.3);
+    }
+
+    .scenic-btn-all {
+      background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
+      border-color: #bbf7d0;
+      color: #16a34a;
+      font-weight: 600;
+    }
+
+    .scenic-btn-all:hover {
+      background: #dcfce7;
+      border-color: #86efac;
+    }
+
+    .scenic-btn-all.active {
+      background: #16a34a;
+      color: #fff;
+      border-color: #16a34a;
+      box-shadow: 0 2px 8px rgba(22,163,74,.3);
+    }
+
+    /* ---- 图表网格 ---- */
+    .charts-grid {
+      flex: 1;
+      min-width: 0;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+
+    .chart-card {
+      background: var(--admin-card);
+      border-radius: var(--admin-radius);
+      border: 1px solid var(--admin-border);
+      box-shadow: var(--admin-shadow);
+      overflow: hidden;
+      transition: box-shadow var(--admin-transition);
+    }
+
+    .chart-card:hover {
+      box-shadow: var(--admin-shadow-md);
+    }
+
+    /* 全宽卡片 */
+    .chart-card.full-width {
+      grid-column: 1 / -1;
+    }
+
+    .chart-card-header {
+      padding: 16px 20px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--admin-border);
+    }
+
+    .chart-card-title {
+      font-size: .92rem;
+      font-weight: 700;
+      color: var(--admin-text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .chart-card-title .title-icon {
+      font-size: 1rem;
+    }
+
+    .chart-card-body {
+      padding: 16px;
+      position: relative;
+      min-height: 320px;
+    }
+
+    .chart-card-body.tall {
+      min-height: 400px;
+    }
+
+    /* 图表容器 */
+    .chart-container {
+      width: 100%;
+      height: 320px;
+    }
+
+    .chart-container.tall {
+      height: 400px;
+    }
+
+    /* ---- 情感切换按钮组 ---- */
+    .sentiment-toggle {
+      display: flex;
+      gap: 4px;
+      background: #f1f5f9;
+      border-radius: 6px;
+      padding: 3px;
+    }
+
+    .sentiment-toggle-btn {
+      padding: 5px 14px;
+      border: none;
+      border-radius: 4px;
+      font-size: .75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--admin-transition);
+      background: transparent;
+      color: var(--admin-text-light);
+      font-family: inherit;
+    }
+
+    .sentiment-toggle-btn:hover {
+      color: var(--admin-text);
+    }
+
+    .sentiment-toggle-btn.active-positive {
+      background: #22c55e;
+      color: #fff;
+      box-shadow: 0 1px 4px rgba(34,197,94,.3);
+    }
+
+    .sentiment-toggle-btn.active-negative {
+      background: #ef4444;
+      color: #fff;
+      box-shadow: 0 1px 4px rgba(239,68,68,.3);
+    }
+
+    .sentiment-toggle-btn.active-neutral {
+      background: #6b7280;
+      color: #fff;
+      box-shadow: 0 1px 4px rgba(107,114,128,.3);
+    }
+
+    /* ---- 加载状态 ---- */
+    .chart-loading {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      background: rgba(255,255,255,.85);
+      z-index: 5;
+    }
+
+    .chart-loading.hidden {
+      display: none;
+    }
+
+    .chart-loading-spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid #e2e8f0;
+      border-top-color: var(--admin-accent);
+      border-radius: 50%;
+      animation: admin-spin .8s linear infinite;
+    }
+
+    .chart-loading-text {
+      font-size: .78rem;
+      color: var(--admin-text-muted);
+    }
+
+    /* ---- 错误状态 ---- */
+    .chart-error {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      background: rgba(255,255,255,.9);
+      z-index: 5;
+    }
+
+    .chart-error.hidden {
+      display: none;
+    }
+
+    .chart-error-icon {
+      font-size: 2rem;
+    }
+
+    .chart-error-text {
+      font-size: .82rem;
+      color: var(--admin-text-light);
+      text-align: center;
+      max-width: 200px;
+    }
+
+    .chart-error-retry {
+      padding: 6px 16px;
+      border: 1.5px solid var(--admin-accent);
+      border-radius: var(--admin-radius-xs);
+      background: transparent;
+      color: var(--admin-accent-dark);
+      font-size: .78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--admin-transition);
+      font-family: inherit;
+    }
+
+    .chart-error-retry:hover {
+      background: var(--admin-accent);
+      color: #fff;
+    }
+
+    /* ---- 有用评论卡片 ---- */
+    .useful-comments-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .useful-comment-item {
+      padding: 14px 16px;
+      background: #f8fafc;
+      border-radius: var(--admin-radius-sm);
+      border: 1px solid var(--admin-border);
+      transition: box-shadow var(--admin-transition);
+    }
+
+    .useful-comment-item:hover {
+      box-shadow: var(--admin-shadow);
+    }
+
+    .useful-comment-content {
+      font-size: .85rem;
+      color: var(--admin-text);
+      line-height: 1.6;
+      margin-bottom: 10px;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .useful-comment-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .useful-comment-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: .7rem;
+      font-weight: 600;
+    }
+
+    .useful-comment-badge.positive {
+      background: var(--admin-success-bg);
+      color: #16a34a;
+      border: 1px solid var(--admin-success-border);
+    }
+
+    .useful-comment-badge.negative {
+      background: var(--admin-danger-bg);
+      color: #dc2626;
+      border: 1px solid var(--admin-danger-border);
+    }
+
+    .useful-comment-badge.neutral {
+      background: var(--admin-neutral-bg);
+      color: #4b5563;
+      border: 1px solid var(--admin-neutral-border);
+    }
+
+    .useful-comment-stat {
+      font-size: .72rem;
+      color: var(--admin-text-muted);
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    /* ---- 景区对比表格 ---- */
+    .comparison-table-wrap {
+      margin-top: 16px;
+      overflow-x: auto;
+    }
+
+    .comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .8rem;
+    }
+
+    .comparison-table th,
+    .comparison-table td {
+      padding: 10px 14px;
+      text-align: center;
+      border-bottom: 1px solid var(--admin-border);
+    }
+
+    .comparison-table th {
+      background: #f8fafc;
+      font-weight: 700;
+      color: var(--admin-text);
+      font-size: .78rem;
+    }
+
+    .comparison-table th:first-child,
+    .comparison-table td:first-child {
+      text-align: left;
+      font-weight: 600;
+      color: var(--admin-text);
+    }
+
+    .comparison-table td {
+      color: var(--admin-text-light);
+    }
+
+    .comparison-table tr:hover td {
+      background: #f8fafc;
+    }
+
+    /* ---- 词云双列布局 ---- */
+    .wordcloud-dual {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .wordcloud-section-title {
+      font-size: .78rem;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .wordcloud-section-title.positive { color: #16a34a; }
+    .wordcloud-section-title.negative { color: #dc2626; }
+
+    /* ---- 景区提示标签 ---- */
+    .scenic-hint {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: .7rem;
+      font-weight: 600;
+      background: #eff6ff;
+      color: var(--admin-accent-dark);
+      border: 1px solid #bfdbfe;
+    }
+
+    /* ---- 空状态 ---- */
+    .chart-empty {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      z-index: 5;
+    }
+
+    .chart-empty.hidden {
+      display: none;
+    }
+
+    .chart-empty-icon {
+      font-size: 2.4rem;
+      opacity: .5;
+    }
+
+    .chart-empty-text {
+      font-size: .82rem;
+      color: var(--admin-text-muted);
+      text-align: center;
+    }
+
+    /* ============================================================
+       响应式
+       ============================================================ */
+    @media (max-width: 1200px) {
+      .charts-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 768px) {
+      .analysis-layout {
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .scenic-panel {
+        width: 100%;
+        position: static;
+        max-height: none;
+        padding: 12px;
+      }
+
+      .scenic-panel-title {
+        margin-bottom: 8px;
+      }
+
+      .scenic-panel .scenic-btn-list {
+        display: flex;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        gap: 6px;
+        padding-bottom: 8px;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .scenic-panel .scenic-btn {
+        flex-shrink: 0;
+        width: auto;
+        margin-bottom: 0;
+        white-space: nowrap;
+      }
+
+      .charts-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .chart-card.full-width {
+        grid-column: 1;
+      }
+
+      .wordcloud-dual {
+        grid-template-columns: 1fr;
+      }
+
+      .content-body {
+        padding: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar overlay (mobile) -->
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <div class="sidebar-logo-icon">M</div>
+        <div class="sidebar-logo-text">
+          MAFSCN
+          <small>景区智能分析系统</small>
+        </div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="sidebar-nav-group-title">功能导航</div>
+      <a href="/admin" class="sidebar-nav-item">
+        <span class="nav-icon">📊</span> 概览与情感分析
+      </a>
+      <a href="/admin/analysis" class="sidebar-nav-item active">
+        <span class="nav-icon">📈</span> 数据分析
+      </a>
+
+      <div class="sidebar-nav-group-title">快捷入口</div>
+      <a href="/" class="sidebar-nav-item">
+        <span class="nav-icon">🏠</span> 游客首页
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-info">
+        BERT 双模型融合架构<br>
+        深度学习情感分析引擎
+      </div>
+      <span class="sidebar-badge success">🎯 准确率 91.02%</span>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <div class="main-content">
+
+    <!-- Header -->
+    <header class="admin-header">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="hamburger-btn" id="hamburgerBtn" onclick="toggleSidebar()">☰</button>
+        <h1 class="admin-header-title">数据分析看板</h1>
+      </div>
+      <div class="admin-header-right">
+        <span class="admin-header-badge" id="headerAccBadge">🎯 准确率 91.02%</span>
+      </div>
+    </header>
+
+    <!-- Content Body -->
+    <div class="content-body">
+      <div class="analysis-layout">
+
+        <!-- ====== 左侧景区选择面板 ====== -->
+        <div class="scenic-panel">
+          <div class="scenic-panel-title">🏔️ 景区选择</div>
+          <div class="scenic-btn-list">
+            <button class="scenic-btn scenic-btn-all active" data-scenic="全部" onclick="selectScenic('全部', this)">📋 全部景区</button>
+            <button class="scenic-btn" data-scenic="冰雪大世界" onclick="selectScenic('冰雪大世界', this)">❄️ 冰雪大世界</button>
+            <button class="scenic-btn" data-scenic="兵马俑" onclick="selectScenic('兵马俑', this)">🏺 兵马俑</button>
+            <button class="scenic-btn" data-scenic="都江堰" onclick="selectScenic('都江堰', this)">🌊 都江堰</button>
+            <button class="scenic-btn" data-scenic="峨眉山" onclick="selectScenic('峨眉山', this)">⛰️ 峨眉山</button>
+            <button class="scenic-btn" data-scenic="故宫" onclick="selectScenic('故宫', this)">🏯 故宫</button>
+            <button class="scenic-btn" data-scenic="龙门石窟" onclick="selectScenic('龙门石窟', this)">🗿 龙门石窟</button>
+            <button class="scenic-btn" data-scenic="清明上河园" onclick="selectScenic('清明上河园', this)">🎨 清明上河园</button>
+            <button class="scenic-btn" data-scenic="上海迪士尼" onclick="selectScenic('上海迪士尼', this)">🏰 上海迪士尼</button>
+            <button class="scenic-btn" data-scenic="万岁山武侠城" onclick="selectScenic('万岁山武侠城', this)">⚔️ 万岁山武侠城</button>
+            <button class="scenic-btn" data-scenic="玉龙雪山" onclick="selectScenic('玉龙雪山', this)">🏔️ 玉龙雪山</button>
+            <button class="scenic-btn" data-scenic="云台山" onclick="selectScenic('云台山', this)">🌄 云台山</button>
+            <button class="scenic-btn" data-scenic="长白山" onclick="selectScenic('长白山', this)">🌲 长白山</button>
+          </div>
+        </div>
+
+        <!-- ====== 右侧图表网格 ====== -->
+        <div class="charts-grid">
+
+          <!-- 1. 各景区评论数量 -->
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <div class="chart-card-title">
+                <span class="title-icon">📊</span> 各景区评论数量
+              </div>
+            </div>
+            <div class="chart-card-body">
+              <div class="chart-loading" id="loading-stats">
+                <div class="chart-loading-spinner"></div>
+                <div class="chart-loading-text">加载中...</div>
+              </div>
+              <div class="chart-error hidden" id="error-stats">
+                <div class="chart-error-icon">⚠️</div>
+                <div class="chart-error-text">数据加载失败</div>
+                <button class="chart-error-retry" onclick="retryLoad('stats')">重新加载</button>
+              </div>
+              <div class="chart-container" id="chart-stats"></div>
+            </div>
+          </div>
+
+          <!-- 2. 评分分布 -->
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <div class="chart-card-title">
+                <span class="title-icon">⭐</span> 评分分布
+              </div>
+            </div>
+            <div class="chart-card-body">
+              <div class="chart-loading" id="loading-scoreDist">
+                <div class="chart-loading-spinner"></div>
+                <div class="chart-loading-text">加载中...</div>
+              </div>
+              <div class="chart-error hidden" id="error-scoreDist">
+                <div class="chart-error-icon">⚠️</div>
+                <div class="chart-error-text">数据加载失败</div>
+                <button class="chart-error-retry" onclick="retryLoad('scoreDist')">重新加载</button>
+              </div>
+              <div class="chart-container" id="chart-scoreDist"></div>
+            </div>
+          </div>
+
+          <!-- 3. 情感占比分析 -->
+          <div class="chart-card full-width">
+            <div class="chart-card-header">
+              <div class="chart-card-title">
+                <span class="title-icon">😊</span> 情感占比分析
+              </div>
+            </div>
+            <div class="chart-card-body">
+              <div class="chart-loading" id="loading-sentimentRatio">
+                <div class="chart-loading-spinner"></div>
+                <div class="chart-loading-text">加载中...</div>
+              </div>
+              <div class="chart-error hidden" id="error-sentimentRatio">
+                <div class="chart-error-icon">⚠️</div>
+                <div class="chart-error-text">数据加载失败</div>
+                <button class="chart-error-retry" onclick="retryLoad('sentimentRatio')">重新加载</button>
+              </div>
+              <div class="chart-container" id="chart-sentimentRatio"></div>
+            </div>
+          </div>
+
+          <!-- 4. 评论时间趋势 -->
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <div class="chart-card-title">
+                <span class="title-icon">📅</span> 评论时间趋势
+              </div>
+            </div>
+            <div class="chart-card-body">
+              <div class="chart-loading" id="loading-timeTrend">
+                <div class="chart-loading-spinner"></div>
+                <div class="chart-loading-text">加载中...</div>
+              </div>
+              <div class="chart-error hidden" id="error-timeTrend">
+                <div class="chart-error-icon">⚠️</div>
+                <div class="chart-error-text">数据加载失败</div>
+                <button class="chart-error-retry" onclick="retryLoad('timeTrend')">重新加载</button>
+              </div>
+              <div class="chart-container" id="chart-timeTrend"></div>
+            </div>
+          </div>
+
+          <!-- 5. 关键词TOP10 -->
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <div class="chart-card-title">
+                <span class="title-icon">🔑</span> 关键词TOP10
+                <span class="scenic-hint" id="keywordsScenicHint">全部景区</span>
+              </div>
+              <div class="sentiment-toggle" id="sentimentToggle">
+                <button class="sentiment-toggle-btn active-positive" data-sentiment="正面" onclick="switchSentiment('正面', this)">正面</button>
+                <button class="sentiment-toggle-btn" data-sentiment="负面" onclick="switchSentiment('负面', this)">负面</button>
+                <button class="sentiment-toggle-btn" data-sentiment="中性" onclick="switchSentiment('中性', this)">中性</button>
+              </div>
+            </div>
+            <div class="chart-card-body">
+              <div class="chart-loading" id="loading-keywords">
+                <div class="chart-loading-spinner"></div>
+                <div class="chart-loading-text">请选择景区</div>
+              </div>
+              <div class="chart-error hidden" id="error-keywords">
+                <div class="chart-error-icon">⚠️</div>
+                <div class="chart-error-text">数据加载失败</div>
+                <button class="chart-error-retry" onclick="retryLoad('keywords')">重新加载</button>
+              </div>
+              <div class="chart-empty" id="empty-keywords">
+                <div class="chart-empty-icon">🏔️</div>
+                <div class="chart-empty-text">请先在左侧选择一个景区</div>
+              </div>
+              <div class="chart-container" id="chart-keywords"></div>
+            </div>
+          </div>
+
+          <!-- 6. 多维评分雷达图 -->
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <div class="chart-card-title">
+                <span class="title-icon">🎯</span> 多维评分
+                <span class="scenic-hint" id="dimensionsScenicHint">请选择景区</span>
+              </div>
+            </div>
+            <div class="chart-card-body">
+              <div class="chart-loading hidden" id="loading-dimensions">
+                <div class="chart-loading-spinner"></div>
+                <div class="chart-loading-text">加载中...</div>
+              </div>
+              <div class="chart-error hidden" id="error-dimensions">
+                <div class="chart-error-icon">⚠️</div>
+                <div class="chart-error-text">数据加载失败</div>
+                <button class="chart-error-retry" onclick="retryLoad('dimensions')">重新加载</button>
+              </div>
+              <div class="chart-empty" id="empty-dimensions">
+                <div class="chart-empty-icon">🏔️</div>
+                <div class="chart-empty-text">请先在左侧选择一个景区</div>
+              </div>
+              <div class="chart-container" id="chart-dimensions"></div>
+            </div>
+          </div>
+
+          <!-- 7. 正负面词云 -->
+          <div class="chart-card full-width">
+            <div class="chart-card-header">
+              <div class="chart-card-title">
+                <span class="title-icon">☁️</span> 正负面词云
+                <span class="scenic-hint" id="wordcloudScenicHint">请选择景区</span>
+              </div>
+            </div>
+            <div class="chart-card-body tall">
+              <div class="chart-loading hidden" id="loading-wordcloud">
+                <div class="chart-loading-spinner"></div>
+                <div class="chart-loading-text">加载中...</div>
+              </div>
+              <div class="chart-error hidden" id="error-wordcloud">
+                <div class="chart-error-icon">⚠️</div>
+                <div class="chart-error-text">数据加载失败</div>
+                <button class="chart-error-retry" onclick="retryLoad('wordcloud')">重新加载</button>
+              </div>
+              <div class="chart-empty" id="empty-wordcloud">
+                <div class="chart-empty-icon">🏔️</div>
+                <div class="chart-empty-text">请先在左侧选择一个景区</div>
+              </div>
+              <div class="wordcloud-dual">
+                <div>
+                  <div class="wordcloud-section-title positive">😊 正面词云</div>
+                  <div class="chart-container tall" id="chart-wordcloud-positive"></div>
+                </div>
+                <div>
+                  <div class="wordcloud-section-title negative">😞 负面词云</div>
+                  <div class="chart-container tall" id="chart-wordcloud-negative"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 8. 评论长度分布 -->
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <div class="chart-card-title">
+                <span class="title-icon">📏</span> 评论长度分布
+              </div>
+            </div>
+            <div class="chart-card-body">
+              <div class="chart-loading" id="loading-commentLength">
+                <div class="chart-loading-spinner"></div>
+                <div class="chart-loading-text">加载中...</div>
+              </div>
+              <div class="chart-error hidden" id="error-commentLength">
+                <div class="chart-error-icon">⚠️</div>
+                <div class="chart-error-text">数据加载失败</div>
+                <button class="chart-error-retry" onclick="retryLoad('commentLength')">重新加载</button>
+              </div>
+              <div class="chart-container" id="chart-commentLength"></div>
+            </div>
+          </div>
+
+          <!-- 9. 最有用评论 -->
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <div class="chart-card-title">
+                <span class="title-icon">💬</span> 最有用评论
+                <span class="scenic-hint" id="usefulScenicHint">请选择景区</span>
+              </div>
+            </div>
+            <div class="chart-card-body">
+              <div class="chart-loading hidden" id="loading-usefulComments">
+                <div class="chart-loading-spinner"></div>
+                <div class="chart-loading-text">加载中...</div>
+              </div>
+              <div class="chart-error hidden" id="error-usefulComments">
+                <div class="chart-error-icon">⚠️</div>
+                <div class="chart-error-text">数据加载失败</div>
+                <button class="chart-error-retry" onclick="retryLoad('usefulComments')">重新加载</button>
+              </div>
+              <div class="chart-empty" id="empty-usefulComments">
+                <div class="chart-empty-icon">🏔️</div>
+                <div class="chart-empty-text">请先在左侧选择一个景区</div>
+              </div>
+              <div class="useful-comments-list" id="usefulCommentsList"></div>
+            </div>
+          </div>
+
+          <!-- 10. 景区综合对比 -->
+          <div class="chart-card full-width">
+            <div class="chart-card-header">
+              <div class="chart-card-title">
+                <span class="title-icon">🏆</span> 景区综合对比
+              </div>
+            </div>
+            <div class="chart-card-body">
+              <div class="chart-loading" id="loading-comparison">
+                <div class="chart-loading-spinner"></div>
+                <div class="chart-loading-text">加载中...</div>
+              </div>
+              <div class="chart-error hidden" id="error-comparison">
+                <div class="chart-error-icon">⚠️</div>
+                <div class="chart-error-text">数据加载失败</div>
+                <button class="chart-error-retry" onclick="retryLoad('comparison')">重新加载</button>
+              </div>
+              <div class="chart-container" id="chart-comparison" style="height:380px;"></div>
+              <div class="comparison-table-wrap" id="comparisonTableWrap"></div>
+            </div>
+          </div>
+
+        </div><!-- /charts-grid -->
+      </div><!-- /analysis-layout -->
+    </div><!-- /content-body -->
+  </div><!-- /main-content -->
+
+  <!-- ECharts CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts-wordcloud@2.1.0/dist/echarts-wordcloud.min.js"></script>
+  <!-- 图表逻辑 -->
+  <script src="/static/js/admin_charts.js"></script>
+
+  <script>
+    /* 侧边栏切换 */
+    function toggleSidebar() {
+      document.getElementById('sidebar').classList.toggle('open');
+      document.getElementById('sidebarOverlay').classList.toggle('show');
+    }
+    function closeSidebar() {
+      document.getElementById('sidebar').classList.remove('open');
+      document.getElementById('sidebarOverlay').classList.remove('show');
+    }
+
+    /* 页面加载完成后初始化 */
+    document.addEventListener('DOMContentLoaded', function() {
+      initAllCharts();
+      loadGlobalData();
+    });
+  </script>
+</body>
+</html>

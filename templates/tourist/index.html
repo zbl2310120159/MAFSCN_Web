@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MAFSCN 智能景区推荐</title>
+  <link rel="stylesheet" href="/static/css/tourist.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header" id="header">
+    <div class="header-logo">
+      <div class="logo-icon">M</div>
+      <div class="logo-text"><span>MAFSCN</span> 智能景区推荐</div>
+    </div>
+    <nav class="header-nav">
+      <a href="/admin">&#9881; 管理中心</a>
+    </nav>
+  </header>
+
+  <!-- Hero 视频背景区 -->
+  <section class="hero" id="hero">
+    <video class="hero-video" autoplay muted loop playsinline>
+      <source src="/data/video/video.mp4" type="video/mp4">
+    </video>
+    <div class="hero-overlay"></div>
+    <canvas class="hero-particles" id="particleCanvas"></canvas>
+    <div class="hero-content">
+      <h1 class="hero-title">发现你的理想景区</h1>
+      <p class="hero-subtitle">基于 BERT 深度学习与双模型情感分析，为你智能推荐最合适的旅游目的地</p>
+    </div>
+    <div class="hero-scroll-hint">
+      <span>向下探索</span>
+      <div class="arrow"></div>
+    </div>
+  </section>
+
+  <!-- 搜索推荐区 -->
+  <section class="search-section" id="searchSection">
+    <h2 class="section-title">智能推荐</h2>
+    <p class="section-desc">输入你的旅行需求，AI 为你匹配最合适的景区</p>
+
+    <div class="search-box">
+      <input
+        type="text"
+        class="search-input"
+        id="searchInput"
+        placeholder="描述你想去的旅行目的地，如：想看雪山、亲子游玩..."
+        maxlength="200"
+      >
+      <button class="search-btn" id="searchBtn" onclick="handleSearch()">
+        &#128269; 智能推荐
+      </button>
+    </div>
+
+    <div class="quick-tags" id="quickTags">
+      <span class="quick-tag" onclick="quickSearch('想看雪山')">想看雪山</span>
+      <span class="quick-tag" onclick="quickSearch('亲子游玩')">亲子游玩</span>
+      <span class="quick-tag" onclick="quickSearch('历史文化')">历史文化</span>
+      <span class="quick-tag" onclick="quickSearch('主题乐园')">主题乐园</span>
+      <span class="quick-tag" onclick="quickSearch('自然风光')">自然风光</span>
+      <span class="quick-tag" onclick="quickSearch('世界遗产')">世界遗产</span>
+      <span class="quick-tag" onclick="quickSearch('武侠体验')">武侠体验</span>
+      <span class="quick-tag" onclick="quickSearch('水利工程')">水利工程</span>
+    </div>
+
+    <!-- 推荐结果 -->
+    <div id="resultsArea"></div>
+  </section>
+
+  <!-- 景区展示区 -->
+  <section class="scenic-section" id="scenicSection">
+    <h2 class="section-title">热门景区</h2>
+    <p class="section-desc">精选 12 个知名景区，点击查看详情</p>
+    <div class="scenic-grid" id="scenicGrid"></div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>&copy; 2026 MAFSCN 景区智能分析系统 &mdash; 基于 BERT 推荐与双模型情感分析</p>
+  </footer>
+
+  <!-- Toast 容器 -->
+  <div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ============================================================
+// 景区数据
+// ============================================================
+const SCENIC_LIST = [
+  '冰雪大世界', '兵马俑', '都江堰', '峨眉山',
+  '故宫', '龙门石窟', '清明上河园', '上海迪士尼',
+  '万岁山武侠城', '玉龙雪山', '云台山', '长白山'
+];
+
+// ============================================================
+// 粒子动画
+// ============================================================
+function initParticles() {
+  const canvas = document.getElementById('particleCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let particles = [];
+  const PARTICLE_COUNT = 80;
+
+  function resize() {
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+  }
+
+  function createParticle() {
+    return {
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      r: Math.random() * 2 + 1,
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: (Math.random() - 0.5) * 0.3 - 0.1,
+      alpha: Math.random() * 0.5 + 0.2
+    };
+  }
+
+  function init() {
+    resize();
+    particles = [];
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      particles.push(createParticle());
+    }
+  }
+
+  function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particles.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      // 边界循环
+      if (p.x < -10) p.x = canvas.width + 10;
+      if (p.x > canvas.width + 10) p.x = -10;
+      if (p.y < -10) p.y = canvas.height + 10;
+      if (p.y > canvas.height + 10) p.y = -10;
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 255, 255, ' + p.alpha + ')';
+      ctx.fill();
+    });
+    requestAnimationFrame(animate);
+  }
+
+  window.addEventListener('resize', resize);
+  init();
+  animate();
+}
+
+// ============================================================
+// Header 滚动效果
+// ============================================================
+function initHeaderScroll() {
+  const header = document.getElementById('header');
+  window.addEventListener('scroll', () => {
+    if (window.scrollY > 50) {
+      header.classList.add('scrolled');
+    } else {
+      header.classList.remove('scrolled');
+    }
+  });
+}
+
+// ============================================================
+// Toast 提示
+// ============================================================
+function showToast(message, type) {
+  type = type || 'error';
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = 'toast ' + type;
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => {
+    if (toast.parentNode) toast.parentNode.removeChild(toast);
+  }, 3200);
+}
+
+// ============================================================
+// 搜索推荐
+// ============================================================
+let isSearching = false;
+
+function quickSearch(text) {
+  document.getElementById('searchInput').value = text;
+  handleSearch();
+}
+
+async function handleSearch() {
+  if (isSearching) return;
+  const input = document.getElementById('searchInput');
+  const text = input.value.trim();
+  if (!text) {
+    showToast('请输入你的旅行需求', 'info');
+    input.focus();
+    return;
+  }
+
+  const btn = document.getElementById('searchBtn');
+  isSearching = true;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading-spinner"></span>推荐中...';
+
+  const resultsArea = document.getElementById('resultsArea');
+  resultsArea.innerHTML = '<div class="loading-state"><div class="big-spinner"></div><p>AI 正在为你匹配最佳景区...</p></div>';
+
+  try {
+    const resp = await fetch('/api/recommend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: text, top_k: 5 })
+    });
+    const data = await resp.json();
+
+    if (!data.success) {
+      showToast(data.error || '推荐失败，请稍后重试');
+      resultsArea.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128533;</div><p>推荐失败，请换个描述试试</p></div>';
+      return;
+    }
+
+    renderResults(data.data);
+  } catch (err) {
+    showToast('网络错误，请检查连接后重试');
+    resultsArea.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128269;</div><p>网络连接失败，请稍后重试</p></div>';
+  } finally {
+    isSearching = false;
+    btn.disabled = false;
+    btn.innerHTML = '&#128269; 智能推荐';
+  }
+}
+
+function renderResults(results) {
+  const area = document.getElementById('resultsArea');
+  if (!results || results.length === 0) {
+    area.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128064;</div><p>未找到匹配的景区，试试其他描述</p></div>';
+    return;
+  }
+
+  let html = '<div class="results-grid">';
+  results.forEach((item, idx) => {
+    const confidence = Math.round(item.confidence * 100);
+    html += '<a href="/scenic/' + encodeURIComponent(item.scenic) + '" class="result-card" style="animation-delay: ' + (idx * 0.1) + 's">';
+    html += '  <div class="card-image">';
+    html += '    <img src="' + item.image + '" alt="' + item.scenic + '" loading="lazy" onerror="this.src=\'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22240%22><rect fill=%22%23e0e7ff%22 width=%22400%22 height=%22240%22/><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%2394a3b8%22 font-size=%2220%22>' + encodeURIComponent(item.scenic) + '</text></svg>\'">';
+    html += '    <div class="card-rank">' + item.rank + '</div>';
+    html += '    <div class="card-confidence">匹配度 ' + confidence + '%</div>';
+    html += '  </div>';
+    html += '  <div class="card-body">';
+    html += '    <div class="card-name">' + item.scenic + '</div>';
+    html += '    <div class="card-address">&#128205; ' + (item.address || '暂无地址') + '</div>';
+    html += '    <div class="card-price">&#128176; ' + (item.price || '暂无价格') + '</div>';
+    html += '    <div class="card-reason">' + (item.reason || '智能推荐') + '</div>';
+    html += '  </div>';
+    html += '</a>';
+  });
+  html += '</div>';
+  area.innerHTML = html;
+}
+
+// 回车搜索
+document.getElementById('searchInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') handleSearch();
+});
+
+// ============================================================
+// 景区展示网格
+// ============================================================
+function renderScenicGrid() {
+  const grid = document.getElementById('scenicGrid');
+  let html = '';
+  SCENIC_LIST.forEach(name => {
+    const imgSrc = '/data/scenic_image/' + encodeURIComponent(name) + '/1.jpg';
+    const fallbackSvg = 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22320%22 height=%22200%22><rect fill=%22%23e0e7ff%22 width=%22320%22 height=%22200%22/><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%2394a3b8%22 font-size=%2218%22>' + encodeURIComponent(name) + '</text></svg>';
+    html += '<a href="/scenic/' + encodeURIComponent(name) + '" class="scenic-card">';
+    html += '  <div class="card-img">';
+    html += '    <img src="' + imgSrc + '" alt="' + name + '" loading="lazy" onerror="this.src=\'' + fallbackSvg + '\'">';
+    html += '  </div>';
+    html += '  <div class="card-info">';
+    html += '    <h3>' + name + '</h3>';
+    html += '    <p>点击查看详情 &rarr;</p>';
+    html += '  </div>';
+    html += '</a>';
+  });
+  grid.innerHTML = html;
+}
+
+// ============================================================
+// 初始化
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+  initParticles();
+  initHeaderScroll();
+  renderScenicGrid();
+});
+</script>
+
+</body>
+</html>
